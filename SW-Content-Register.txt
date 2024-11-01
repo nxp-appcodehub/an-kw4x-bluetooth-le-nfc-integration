@@ -1,0 +1,21 @@
+Release Name: an-kw4x-bluetooth-le-nfc-integration
+Release Version: v1.0.0
+Outgoing License: LA_OPT_Online Code Hosting NXP_Software_License - v1.2 October 2023
+License File: LICENSE.txt
+Type of content: MCUXpresso project with source code
+Description and comments: AN13953 - Integrating NFC Reader Library in a KW4x Bluetooth Low Energy Application
+Release location: https://github.com/nxp-appcodehub/an-kw4x-bluetooth-le-nfc-integration
+Origin: NXP (proprietary)
+        NXP (BSD-3-Clause)
+        ARM CMSIS 5.8.0 (Apache License 2.0) - https://github.com/ARM-software/CMSIS_5/releases/tag/5.8.0
+        Amazon FreeRTOS Kernel 10.4.3_rev1 (MIT) - https://aws.amazon.com/freertos/
+        Mentor Graphics Corporation & community contributors 4.0.0 (BSD-3-Clause) - https://github.com/NXPmicro/rpmsg-lite
+
+
+
+
+
+
+
+
+

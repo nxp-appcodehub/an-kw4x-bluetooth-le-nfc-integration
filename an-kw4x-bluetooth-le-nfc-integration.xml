@@ -1,0 +1,30 @@
+<data:item xmlns:data="data" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="data ../../xsd/alp.xsd" id="an-kw4x-bluetooth-le-nfc-integration" type="app_note" format="projectfile" versionSchema="1.0.0" name="AN13953 Integrating NFC Reader lib in Bluetooth LE application">
+    <display_title>
+        AN13953 Integrating NFC Reader Library in a KW4x Bluetooth Low Energy Application
+    </display_title>
+    <overview>
+        <![CDATA[This software accompanies application note [AN13953], which gives instructions on how to create a Bluetooth Low Energy project for the EVK-KW45 development board and MCUXpresso IDE, and how to integrate NFC Reader Library. ]]>
+    </overview>
+    <toolchains>
+        <toolchain name="mcux"></toolchain>
+    </toolchains>
+    <families>
+        <family name="k32w"></family>
+        <family name="kinetis"></family>
+        <family name="pn"></family>
+    </families>
+    <nxp_compatible_hw>
+        <hw id="KW45B41Z-EVK"></hw>
+        <hw id="K32W148-EVK"></hw>
+        <custom_hw></custom_hw>
+    </nxp_compatible_hw>
+    <peripherals>
+        <peripheral name="uart"></peripheral>
+        <peripheral name="gpio"></peripheral>
+        <peripheral name="spi"></peripheral>
+        <peripheral name="timer"></peripheral>
+    </peripherals>
+    <categories>
+        <category name="wireless_connectivity"></category>
+    </categories>
+</data:item>

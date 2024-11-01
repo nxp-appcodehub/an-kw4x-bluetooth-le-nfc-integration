@@ -1,0 +1,409 @@
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.c b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.c
+index 0371eb2..c4f21c5 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.c
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.c
+@@ -35,7 +35,6 @@
+ * Reader Library Headers
+ */
+ #include <phApp_Init.h>
+-
+ /* Local headers */
+ #include "NfcrdlibEx1_BasicDiscoveryLoop.h"
+ 
+@@ -86,7 +85,7 @@ void BasicDiscoveryLoop_Demo(void  *pDataParams);
+ **   Main Function
+ *******************************************************************************/
+ 
+-int main (void)
++void NFC_BasicDiscoveryLoop_Start (void)
+ {
+     do
+     {
+@@ -94,20 +93,18 @@ int main (void)
+         phNfcLib_Status_t     dwStatus;
+ 
+ #ifdef PH_PLATFORM_HAS_ICFRONTEND
+-        phNfcLib_AppContext_t AppContext = {0};
++        //phNfcLib_AppContext_t AppContext = {0};
+ #endif /* PH_PLATFORM_HAS_ICFRONTEND */
+ 
+ #ifndef PH_OSAL_NULLOS
+         phOsal_ThreadObj_t BasicDisc;
+ #endif /* PH_OSAL_NULLOS */
+ 
+-        /* Perform Controller specific initialization. */
+-        phApp_CPU_Init();
+-
+-        /* Perform OSAL Initialization. */
+-        (void)phOsal_Init();
++#ifdef PH_PLATFORM_HAS_ICFRONTEND
++        phNfcLib_AppContext_t AppContext = {0};
++#endif /* PH_PLATFORM_HAS_ICFRONTEND */
+ 
+-        DEBUG_PRINTF("\n\r BasicDiscoveryLoop Example: \n\r");
++        //DEBUG_PRINTF("\n\r BasicDiscoveryLoop Example: \n\r");
+ 
+ #ifdef PH_PLATFORM_HAS_ICFRONTEND
+         status = phbalReg_Init(&sBalParams, sizeof(phbalReg_Type_t));
+@@ -138,23 +135,19 @@ int main (void)
+         if(status != PH_ERR_SUCCESS) break;
+ 
+ #ifndef PH_OSAL_NULLOS
+-
+         BasicDisc.pTaskName = (uint8_t *) "BasicDiscLoop";
+         BasicDisc.pStackBuffer = aBasicDiscTaskBuffer;
+         BasicDisc.priority = BASIC_DISC_DEMO_TASK_PRIO;
+         BasicDisc.stackSizeInNum = BASIC_DISC_DEMO_TASK_STACK;
+         phOsal_ThreadCreate(&BasicDisc.ThreadHandle, &BasicDisc, &BasicDiscoveryLoop_Demo, pDiscLoop);
+-        phOsal_StartScheduler();
+-        DEBUG_PRINTF("RTOS Error : Scheduler exited. \n\r");
++        //phOsal_StartScheduler();
++        //DEBUG_PRINTF("RTOS Error : Scheduler exited. \n\r");
+ 
+ #else
+         (void)BasicDiscoveryLoop_Demo(pDiscLoop);
+ #endif
+     } while(0);
+ 
+-    while(1); //Comes here if initialization failure or scheduler exit due to error
+-
+-    return 0;
+ }
+ 
+ /**
+@@ -208,6 +201,7 @@ void BasicDiscoveryLoop_Demo(void  *pDataParams)
+         {
+             status = phApp_ConfigureLPCD();
+             CHECK_STATUS(status);
++            
+         }
+ 
+         /* Bool to enable LPCD feature. */
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.h b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.h
+index a8eeddf..03513cc 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.h
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/NfcrdlibEx1_BasicDiscoveryLoop.h
+@@ -35,4 +35,7 @@
+ #define BASIC_DISC_DEMO_TASK_PRIO                 0
+ #endif /* PH_OSAL_LINUX */
+ 
++
++void NFC_BasicDiscoveryLoop_Start (void);
++
+ #endif /* INTFS_NFCRDLIBEX1_BASICDISCOVERYLOOP_H_ */
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.c b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.c
+index 8426bf9..1ebdf89 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.c
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.c
+@@ -66,11 +66,25 @@
+ #endif
+ #endif /* PHDRIVER_KINETIS_K82 */
+ 
++#ifdef PHDRIVER_KINETIS_KW45
++#include "clock_config.h"
++#include <fsl_port.h>
++#include <fsl_lpit.h>
++#ifdef DEBUG
++#include <fsl_clock.h>
++#endif
++#endif /* PHDRIVER_KINETIS_KW45 */
++
+ #ifdef NXPBUILD__PHHAL_HW_PN7462AU
+ #include <phFlashBoot.h>
+ #include <phhalTimer.h>
+ #endif /* NXPBUILD__PHHAL_HW_PN7462AU */
+ 
++
++#if gUseNfcLibrary_d
++#include "wireless_uart.h"
++#endif
++
+ #ifdef PHDRIVER_KINETIS_K82
+ #ifdef DEBUG
+ 
+@@ -79,8 +93,25 @@
+ #define KINETIS_K82_DEBUG_UART_BAUDRATE         115200
+ #define KINETIS_K82_DEBUG_UART_TYPE             DEBUG_CONSOLE_DEVICE_TYPE_LPUART
+ 
+-#endif
++#endif /* DEBUG */
++
++#endif /* PHDRIVER_KINETIS_K82 */
++
++#ifdef PHDRIVER_KINETIS_KW45
++
++#ifdef DEBUG
+ 
++#define KINETIS_KW45_DEBUG_UART_CLK_FREQ         CLOCK_GetOsc0ErClkFreq()
++#define KINETIS_KW45_DEBUG_UART_BASEADDR         ((uint32_t)LPUART1)
++#define KINETIS_KW45_DEBUG_UART_BAUDRATE         115200
++#define KINETIS_KW45_DEBUG_UART_TYPE             DEBUG_CONSOLE_DEVICE_TYPE_LPUART
++
++#endif /* DEBUG */
++
++#endif /* PHDRIVER_KINETIS_KW45 */
++
++
++#if defined(PHDRIVER_KINETIS_K82)
+ /*! @brief Clock configuration structure. */
+ typedef struct _clock_config
+ {
+@@ -165,6 +196,7 @@ const clock_config_t g_defaultClockConfigRun = {
+ };
+ #endif /* PHDRIVER_KINETIS_K82 */
+ 
++
+ /*******************************************************************************
+ **   Global Variable Declaration
+ *******************************************************************************/
+@@ -281,6 +313,14 @@ static void phApp_K82_Init(void)
+ }
+ #endif /* PHDRIVER_KINETIS_K82 */
+ 
++
++#ifdef PHDRIVER_KINETIS_KW45
++static void phApp_KW45_Init(void)
++{
++}
++#endif /* PHDRIVER_KINETIS_KW45 */
++
++
+ /**
+ * This function will initialize Host Controller.
+ * Any initialization which is not generic across Platforms, should be done here.
+@@ -295,6 +335,8 @@ void phApp_CPU_Init(void)
+     phhalTimer_Init();
+ #elif defined(PHDRIVER_LPC1769) && defined(__CC_ARM)
+     SystemCoreClock =  (( unsigned long ) 96000000);
++#elif defined (PHDRIVER_KINETIS_KW45)
++     phApp_KW45_Init();
+ #else
+     /* In case of LPC series, startup file takes care of initializing clock and ports.
+      * No initialization is required in Linux environment. */
+@@ -419,6 +461,17 @@ phStatus_t phApp_HALConfigAutoColl(void)
+     return PH_ERR_SUCCESS;
+ }
+ 
++#ifdef PHDRIVER_KINETIS_KW45
++IRQ_HANDLE_ARRAY_DEFINE(g_IrqHandle, 1);   
++#define gBoardIrqHandle ((irq_handle_t)g_IrqHandle[0])
++
++void CLIF_HalIRQHandler(void *param)
++{
++    CLIF_IRQHandler();
++}
++#endif
++
++
+ phStatus_t phApp_Configure_IRQ()
+ {
+ #ifdef PH_OSAL_LINUX
+@@ -458,6 +511,36 @@ phStatus_t phApp_Configure_IRQ()
+     EnableIRQ(EINT_IRQn);
+ #endif /* PHDRIVER_KINETIS_K82 */
+ 
++#ifdef PHDRIVER_KINETIS_KW45
++    
++#if !gAppButtonCnt_c
++    NVIC_SetPriority(EINT_IRQn, EINT_PRIORITY);
++    NVIC_ClearPendingIRQ(EINT_IRQn);
++    EnableIRQ(EINT_IRQn);
++#else
++    
++#include "fsl_adapter_gpio.h"
++
++    static const hal_gpio_pin_config_t g_IrqConfig = {
++      kHAL_GpioDirectionIn,
++      PHDRIVER_IRQ_GPIO_PIN_DEFAULT_STATE,
++      PHDRIVER_IRQ_GPIO_PORT_INSTANCE,
++      PHDRIVER_IRQ_GPIO_PIN        
++    };
++    
++    if (kStatus_HAL_GpioSuccess != HAL_GpioInit((hal_gpio_handle_t)gBoardIrqHandle,
++                                                        (hal_gpio_pin_config_t *)&g_IrqConfig))   
++    {
++        return PH_ERR_ABORTED;
++    }
++    
++
++    (void)HAL_GpioInstallCallback(gBoardIrqHandle, CLIF_HalIRQHandler, NULL);    
++   
++#endif /* !gAppButtonCnt_c */
++
++#endif /* PHDRIVER_KINETIS_KW45 */
++
+ #endif /* #ifdef PH_PLATFORM_HAS_ICFRONTEND */
+ 
+     return PH_ERR_SUCCESS;
+@@ -535,7 +618,11 @@ static void phExample_IrqPolling(void* param)
+ void CLIF_IRQHandler(void)
+ {
+     /* Read the interrupt status of external interrupt attached to the reader IC IRQ pin */
+-    if (phDriver_PinRead(PHDRIVER_PIN_IRQ, PH_DRIVER_PINFUNC_INTERRUPT))
++#if defined(PHDRIVER_KINETIS_KW45)
++   if (!phDriver_PinRead(PHDRIVER_PIN_IRQ, PH_DRIVER_PINFUNC_INPUT)) 
++#else
++   if (phDriver_PinRead(PHDRIVER_PIN_IRQ, PH_DRIVER_PINFUNC_INTERRUPT)) 
++#endif
+     {
+         /* Call application registered callback. */
+         if (pHal->pRFISRCallback != NULL)
+@@ -702,12 +789,18 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+ #if defined(NXPBUILD__PHAC_DISCLOOP_TYPEA_TAGS) || defined(NXPBUILD__PHAC_DISCLOOP_TYPEA_P2P_ACTIVE)
+     if (PHAC_DISCLOOP_CHECK_ANDMASK(wTagsDetected, PHAC_DISCLOOP_POS_BIT_MASK_A))
+     {
++#if gUseNfcLibrary_d
++		gNfcCardInfo.technology = 'A';
++#endif
+         if(pDataParams->sTypeATargetInfo.bT1TFlag)
+         {
+             DEBUG_PRINTF("\tTechnology  : Type A");
+             DEBUG_PRINTF ("\n\t\tUID :");
+             phApp_Print_Buff( pDataParams->sTypeATargetInfo.aTypeA_I3P3[0].aUid,
+                         pDataParams->sTypeATargetInfo.aTypeA_I3P3[0].bUidSize);
++#if gUseNfcLibrary_d
++			FLib_MemCpy(&gNfcCardInfo.uid[0], pDataParams->sTypeATargetInfo.aTypeA_I3P3[0].aUid, 8);
++#endif
+             DEBUG_PRINTF ("\n\t\tSAK : 0x%02x",pDataParams->sTypeATargetInfo.aTypeA_I3P3[0].aSak);
+             DEBUG_PRINTF ("\n\t\tType: Type 1 Tag\n");
+         }
+@@ -721,7 +814,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+                 phApp_Print_Buff( pDataParams->sTypeATargetInfo.aTypeA_I3P3[bIndex].aUid,
+                             pDataParams->sTypeATargetInfo.aTypeA_I3P3[bIndex].bUidSize);
+                 DEBUG_PRINTF ("\n\t\tSAK : 0x%02x",pDataParams->sTypeATargetInfo.aTypeA_I3P3[bIndex].aSak);
+-
++#if gUseNfcLibrary_d
++                FLib_MemCpy(&gNfcCardInfo.uid[0], pDataParams->sTypeATargetInfo.aTypeA_I3P3[bIndex].aUid, 8);
++#endif
+                 if ((pDataParams->sTypeATargetInfo.aTypeA_I3P3[bIndex].aSak & (uint8_t) ~0xFB) == 0)
+                 {
+                     /* Bit b3 is set to zero, [Digital] 4.8.2 */
+@@ -755,6 +850,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+ #ifdef NXPBUILD__PHAC_DISCLOOP_TYPEB_TAGS
+     if (PHAC_DISCLOOP_CHECK_ANDMASK(wTagsDetected, PHAC_DISCLOOP_POS_BIT_MASK_B))
+     {
++#if gUseNfcLibrary_d
++    	gNfcCardInfo.technology = 'B';
++#endif
+         DEBUG_PRINTF("\tTechnology  : Type B");
+         /* Loop through all the Type B tags detected and print the Pupi */
+         for (bIndex = 0; bIndex < wNumberOfTags; bIndex++)
+@@ -763,6 +861,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+             DEBUG_PRINTF ("\n\t\tUID :");
+             /* PUPI Length is always 4 bytes */
+             phApp_Print_Buff( pDataParams->sTypeBTargetInfo.aTypeB_I3P3[bIndex].aPupi, 0x04);
++#if gUseNfcLibrary_d
++			FLib_MemCpy(&gNfcCardInfo.uid[0], pDataParams->sTypeBTargetInfo.aTypeB_I3P3[bIndex].aPupi, 4);
++#endif
+         }
+         DEBUG_PRINTF("\n");
+     }
+@@ -774,6 +875,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+     {
+         DEBUG_PRINTF("\tTechnology  : Type F");
+ 
++#if gUseNfcLibrary_d
++    	gNfcCardInfo.technology = 'F';
++#endif
+         /* Loop through all the type F tags and print the IDm */
+         for (bIndex = 0; bIndex < wNumberOfTags; bIndex++)
+         {
+@@ -781,6 +885,11 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+             DEBUG_PRINTF ("\n\t\tUID :");
+             phApp_Print_Buff( pDataParams->sTypeFTargetInfo.aTypeFTag[bIndex].aIDmPMm,
+                         PHAC_DISCLOOP_FELICA_IDM_LENGTH );
++
++#if gUseNfcLibrary_d
++			FLib_MemCpy(&gNfcCardInfo.uid[0], pDataParams->sTypeFTargetInfo.aTypeFTag[bIndex].aIDmPMm, 8);
++#endif
++
+             if ((pDataParams->sTypeFTargetInfo.aTypeFTag[bIndex].aIDmPMm[0] == 0x01) &&
+                 (pDataParams->sTypeFTargetInfo.aTypeFTag[bIndex].aIDmPMm[1] == 0xFE))
+             {
+@@ -808,6 +917,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+ #ifdef NXPBUILD__PHAC_DISCLOOP_TYPEV_TAGS
+     if (PHAC_DISCLOOP_CHECK_ANDMASK(wTagsDetected, PHAC_DISCLOOP_POS_BIT_MASK_V))
+     {
++#if gUseNfcLibrary_d
++    	gNfcCardInfo.technology = 'V';
++#endif
+         DEBUG_PRINTF("\tTechnology  : Type V / ISO 15693 / T5T");
+         /* Loop through all the Type V tags detected and print the UIDs */
+         for (bIndex = 0; bIndex < wNumberOfTags; bIndex++)
+@@ -815,6 +927,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+             DEBUG_PRINTF ("\n\t\tCard: %d",bIndex + 1);
+             DEBUG_PRINTF ("\n\t\tUID :");
+             phApp_Print_Buff( pDataParams->sTypeVTargetInfo.aTypeV[bIndex].aUid, 0x08);
++#if gUseNfcLibrary_d
++			FLib_MemCpy(&gNfcCardInfo.uid[0], pDataParams->sTypeVTargetInfo.aTypeV[bIndex].aUid, 8);
++#endif
+         }
+         DEBUG_PRINTF("\n");
+     }
+@@ -823,6 +938,9 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+ #ifdef NXPBUILD__PHAC_DISCLOOP_I18000P3M3_TAGS
+     if (PHAC_DISCLOOP_CHECK_ANDMASK(wTagsDetected, PHAC_DISCLOOP_POS_BIT_MASK_18000P3M3))
+     {
++#if gUseNfcLibrary_d
++    	gNfcCardInfo.technology = 'I';
++#endif
+         DEBUG_PRINTF("\tTechnology  : ISO 18000p3m3 / EPC Gen2");
+         /* Loop through all the 18000p3m3 tags detected and print the UII */
+         for (bIndex = 0; bIndex < wNumberOfTags; bIndex++)
+@@ -832,10 +950,18 @@ void phApp_PrintTagInfo(phacDiscLoop_Sw_DataParams_t *pDataParams, uint16_t wNum
+             phApp_Print_Buff(
+                 pDataParams->sI18000p3m3TargetInfo.aI18000p3m3[bIndex].aUii,
+                 (pDataParams->sI18000p3m3TargetInfo.aI18000p3m3[bIndex].wUiiLength / 8));
++#if gUseNfcLibrary_d
++			FLib_MemCpy(&gNfcCardInfo.uid[0], pDataParams->sI18000p3m3TargetInfo.aI18000p3m3[bIndex].aUii, 8);
++#endif
+         }
+         DEBUG_PRINTF("\n");
+     }
+ #endif
++
++#if gUseNfcLibrary_d
++    BleApp_SendNfcCardInfo();
++#endif
++
+ }
+ 
+ /**
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.h b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.h
+index e93858e..ae652f3 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.h
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/phApp_Init.h
+@@ -46,6 +46,10 @@
+ #define PHDRIVER_KINETIS_K82
+ #endif
+ 
++#if defined(PHDRIVER_EVK_KW45FPN5180_BOARD) || defined(PHDRIVER_EVK_KW45FRC663_BOARD)
++#define PHDRIVER_KINETIS_KW45
++#endif
++
+ /* Check for LPC1769 controller based boards. */
+ #if defined(PHDRIVER_LPC1769PN5180_BOARD) || defined(PHDRIVER_LPC1769RC663_BOARD)
+ #define PHDRIVER_LPC1769
+@@ -69,7 +73,7 @@
+         #endif
+     #else /* PHDRIVER_KINETIS_K82 */
+         #include <stdio.h>
+-        #define  DEBUG_PRINTF(...) printf(__VA_ARGS__); fflush(stdout)
++        #define  DEBUG_PRINTF(...) //printf(__VA_ARGS__); fflush(stdout)
+     #endif /* PHDRIVER_KINETIS_K82 */
+ #else /* DEBUG */
+     #define  DEBUG_PRINTF(...)
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/ph_NxpBuild_App.h b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/ph_NxpBuild_App.h
+index a6cb42d..e5d7173 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/ph_NxpBuild_App.h
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/source/nfc/ph_NxpBuild_App.h
+@@ -55,7 +55,8 @@
+ #endif
+ 
+ #if defined(PHDRIVER_LPC1769RC663_BOARD) \
+-    || defined(PHDRIVER_FRDM_K82FRC663_BOARD)
++    || defined(PHDRIVER_FRDM_K82FRC663_BOARD)\
++    || defined(PHDRIVER_EVK_KW45FRC663_BOARD)
+ #   define NXPBUILD__PHHAL_HW_RC663
+ #endif
+ 

@@ -1,0 +1,350 @@
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phDriver_KinetisSDK.c b/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phDriver_KinetisSDK.c
+index b762316..ee74ce9 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phDriver_KinetisSDK.c
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phDriver_KinetisSDK.c
+@@ -32,7 +32,12 @@
+ #include "fsl_device_registers.h"
+ #include <fsl_port.h>
+ #include <fsl_gpio.h>
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++#include <fsl_lpit.h>
++#else
+ #include <fsl_pit.h>
++#endif
++
+ 
+ /* *****************************************************************************************************************
+  * Internal Definitions
+@@ -53,6 +58,8 @@ static const PORT_Type *pPortsBaseAddr[] = PORT_BASE_PTRS;
+ static const GPIO_Type *pGpiosBaseAddr[] = GPIO_BASE_PTRS;
+ /* Clock ip name array for PORT. */
+ static const clock_ip_name_t pPortsClock[] = PORT_CLOCKS;
++
++#if !(defined(FSL_FEATURE_PORT_HAS_NO_INTERRUPT) && FSL_FEATURE_PORT_HAS_NO_INTERRUPT)
+ /* Used to map phDriver Interrupt triggers to Kinetis */
+ static const port_interrupt_t aInterruptTypes[] = {kPORT_InterruptLogicZero, /* Unused. */
+         kPORT_InterruptLogicZero,
+@@ -61,6 +68,16 @@ static const port_interrupt_t aInterruptTypes[] = {kPORT_InterruptLogicZero, /*
+         kPORT_InterruptFallingEdge,
+         kPORT_InterruptEitherEdge,
+ };
++#else
++static const gpio_interrupt_config_t aInterruptTypes[] = {kGPIO_InterruptLogicZero, /* Unused. */
++        kGPIO_InterruptLogicZero,
++        kGPIO_InterruptLogicOne,
++        kGPIO_InterruptRisingEdge,
++        kGPIO_InterruptFallingEdge,
++        kGPIO_InterruptEitherEdge,
++  
++};
++#endif
+ 
+ static pphDriver_TimerCallBck_t pPitTimerCallBack;
+ static volatile uint8_t dwTimerExp;
+@@ -100,7 +117,25 @@ phStatus_t phDriver_TimerStart(phDriver_Timer_Unit_t eTimerUnit, uint32_t dwTime
+     {   /* Call the Timer callback. */
+         pPitTimerCallBack = pTimerCallBack;
+     }
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++    lpit_chnl_params_t lpitChannelConfig;
++    lpitChannelConfig.chainChannel          = false;
++    lpitChannelConfig.enableReloadOnTrigger = false;
++    lpitChannelConfig.enableStartOnTrigger  = false;
++    lpitChannelConfig.enableStopOnTimeout   = false;
++    lpitChannelConfig.timerMode             = kLPIT_PeriodicCounter;
++    /* Set default values for the trigger source */
++    lpitChannelConfig.triggerSelect = kLPIT_Trigger_TimerChn0;
++    lpitChannelConfig.triggerSource = kLPIT_TriggerSource_External;    
++    
++    LPIT_SetupChannel(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL,&lpitChannelConfig);
++    LPIT_StopTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
++    LPIT_ClearStatusFlags(PH_DRIVER_KSDK_PIT_TIMER, kLPIT_Channel0TimerFlag);
++    LPIT_EnableInterrupts(PH_DRIVER_KSDK_PIT_TIMER, kLPIT_Channel0TimerInterruptEnable);
+ 
++    /* Configure timer period */
++    LPIT_SetTimerPeriod(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL, (uint32_t)qwTimerCnt);
++#else
+     PIT_SetTimerChainMode(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL, false);
+     PIT_StopTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
+     PIT_ClearStatusFlags(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL, kPIT_TimerFlag);
+@@ -108,7 +143,7 @@ phStatus_t phDriver_TimerStart(phDriver_Timer_Unit_t eTimerUnit, uint32_t dwTime
+ 
+     /* Configure timer period */
+     PIT_SetTimerPeriod(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL, (uint32_t)qwTimerCnt);
+-
++#endif
+     /* Set timer priority of the interrupt */
+     NVIC_SetPriority(PH_DRIVER_KSDK_TIMER_NVIC, PH_DRIVER_KSDK_TIMER_PRIORITY);
+ 
+@@ -117,7 +152,11 @@ phStatus_t phDriver_TimerStart(phDriver_Timer_Unit_t eTimerUnit, uint32_t dwTime
+ 
+     /* Enable at the NVIC & start timer */
+     EnableIRQ(PH_DRIVER_KSDK_TIMER_NVIC);
++#if PHDRIVER_EVK_KW45FRC663_BOARD	
++    LPIT_StartTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
++#else
+     PIT_StartTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
++#endif
+ 
+     if(pTimerCallBack == NULL)
+     {
+@@ -131,8 +170,13 @@ phStatus_t phDriver_TimerStart(phDriver_Timer_Unit_t eTimerUnit, uint32_t dwTime
+ 
+ phStatus_t phDriver_TimerStop(void)
+ {
++#if PHDRIVER_EVK_KW45FRC663_BOARD	
++    LPIT_StopTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
++    LPIT_DisableInterrupts(PH_DRIVER_KSDK_PIT_TIMER, kLPIT_Channel0TimerInterruptEnable);
++#else
+     PIT_StopTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
+     PIT_DisableInterrupts(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL, kPIT_TimerInterruptEnable);
++#endif
+ 
+     /* Disable at the NVIC */
+     DisableIRQ(PH_DRIVER_KSDK_TIMER_NVIC);
+@@ -146,17 +190,24 @@ phStatus_t phDriver_PinConfig(uint32_t dwPinNumber, phDriver_Pin_Func_t ePinFunc
+     gpio_pin_config_t sGpioConfig;
+     uint8_t bPinNum;
+     uint8_t bPortGpio;
+-
++#if !(defined(FSL_FEATURE_PORT_HAS_NO_INTERRUPT) && FSL_FEATURE_PORT_HAS_NO_INTERRUPT)
+     port_interrupt_t eInterruptType;
++#else
++    gpio_interrupt_config_t eInterruptType;
++#endif
+     port_pin_config_t sPinConfig =
+     {
+         .pullSelect = kPORT_PullDisable,
+         .slewRate = kPORT_FastSlewRate,
+         .passiveFilterEnable = kPORT_PassiveFilterDisable,
++#if defined(FSL_FEATURE_PORT_HAS_OPEN_DRAIN) && FSL_FEATURE_PORT_HAS_OPEN_DRAIN
+         .openDrainEnable = kPORT_OpenDrainDisable,
++#endif
+         .driveStrength = kPORT_HighDriveStrength,
+         .mux = kPORT_MuxAsGpio,
++#if defined(FSL_FEATURE_PORT_HAS_PIN_CONTROL_LOCK) && FSL_FEATURE_PORT_HAS_PIN_CONTROL_LOCK
+         .lockRegister = kPORT_UnlockRegister
++#endif
+     };
+ 
+     if((ePinFunc == PH_DRIVER_PINFUNC_BIDIR) || (pPinConfig == NULL))
+@@ -178,8 +229,20 @@ phStatus_t phDriver_PinConfig(uint32_t dwPinNumber, phDriver_Pin_Func_t ePinFunc
+     if(ePinFunc == PH_DRIVER_PINFUNC_INTERRUPT)
+     {
+         eInterruptType = aInterruptTypes[(uint8_t)pPinConfig->eInterruptConfig];
++        
++#if PHDRIVER_EVK_KW45FRC663_BOARD 
++        GPIO_GpioClearInterruptFlags((GPIO_Type *)pGpiosBaseAddr[bPortGpio], (1U << bPinNum));
++#else
+         GPIO_ClearPinsInterruptFlags((GPIO_Type *)pGpiosBaseAddr[bPortGpio], bPinNum);
++#endif
++        
++#if (defined(FSL_FEATURE_PORT_HAS_NO_INTERRUPT) && FSL_FEATURE_PORT_HAS_NO_INTERRUPT)
++        GPIO_SetPinInterruptConfig((GPIO_Type *)pGpiosBaseAddr[bPortGpio], bPinNum, eInterruptType); 
++#else
+         PORT_SetPinInterruptConfig((PORT_Type *)pPortsBaseAddr[bPortGpio], bPinNum, eInterruptType);
++#endif        
++        
++
+     }
+ 
+     GPIO_PinInit((GPIO_Type *)pGpiosBaseAddr[bPortGpio], bPinNum, &sGpioConfig);
+@@ -200,11 +263,20 @@ uint8_t phDriver_PinRead(uint32_t dwPinNumber, phDriver_Pin_Func_t ePinFunc)
+ 
+     if(ePinFunc == PH_DRIVER_PINFUNC_INTERRUPT)
+     {
++#if !(defined(FSL_FEATURE_PORT_HAS_NO_INTERRUPT) && FSL_FEATURE_PORT_HAS_NO_INTERRUPT)
+         bValue = (uint8_t)((GPIO_GetPinsInterruptFlags((GPIO_Type *)pGpiosBaseAddr[bGpioNum]) >> bPinNum) & 0x01);
++#else
++        bValue = (uint8_t)((GPIO_GpioGetInterruptFlags((GPIO_Type *)pGpiosBaseAddr[bGpioNum]) >> bPinNum) & 0x01);
++#endif
+     }
+     else
+     {
++#if PHDRIVER_EVK_KW45FRC663_BOARD   
++        bValue = (uint8_t)GPIO_PinRead((GPIO_Type *)pGpiosBaseAddr[bGpioNum], bPinNum);
++#else
+         bValue = (uint8_t)GPIO_ReadPinInput((GPIO_Type *)pGpiosBaseAddr[bGpioNum], bPinNum);
++#endif
++        
+     }
+ 
+     return bValue;
+@@ -219,8 +291,13 @@ void phDriver_PinWrite(uint32_t dwPinNumber, uint8_t bValue)
+     /* Extract the Pin, Gpio details from dwPinNumber */
+     bPinNum = (uint8_t)(dwPinNumber & 0xFF);
+     bGpioNum = (uint8_t)((dwPinNumber & 0xFF00)>>8);
+-
++    
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++    GPIO_PinWrite((GPIO_Type *)pGpiosBaseAddr[bGpioNum], bPinNum, bValue);    
++#else
+     GPIO_WritePinOutput((GPIO_Type *)pGpiosBaseAddr[bGpioNum], bPinNum, bValue);
++#endif
++
+ }
+ 
+ 
+@@ -233,10 +310,28 @@ void phDriver_PinClearIntStatus(uint32_t dwPinNumber)
+     bPinNum = (uint8_t)(dwPinNumber & 0xFF);
+     bGpioNum = (uint8_t)((dwPinNumber & 0xFF00)>>8);
+ 
++#if PHDRIVER_EVK_KW45FRC663_BOARD 
++    GPIO_GpioClearInterruptFlags((GPIO_Type *)pGpiosBaseAddr[bGpioNum], (1U << bPinNum));
++#else
+     GPIO_ClearPinsInterruptFlags((GPIO_Type *)pGpiosBaseAddr[bGpioNum], (1<<bPinNum));
++#endif    
++     
+ }
+ 
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++void PIT_DriverIRQHandler(void)
++{
++    /* Clear interrupt flag.*/
++    LPIT_ClearStatusFlags(PH_DRIVER_KSDK_PIT_TIMER, kLPIT_Channel0TimerFlag);
++
++    /* Single shot timer. Stop it. */
++    LPIT_StopTimer(PH_DRIVER_KSDK_PIT_TIMER, PH_DRIVER_KSDK_TIMER_CHANNEL);
++    LPIT_DisableInterrupts(PH_DRIVER_KSDK_PIT_TIMER, kLPIT_Channel0TimerInterruptEnable);
++
++    pPitTimerCallBack();
+ 
++}
++#else
+ void PIT0_IRQHandler(void)
+ {
+     /* Clear interrupt flag.*/
+@@ -249,6 +344,7 @@ void PIT0_IRQHandler(void)
+     pPitTimerCallBack();
+ 
+ }
++#endif
+ 
+ 
+ static void phDriver_PitTimerIsrCallBack(void)
+diff --git a/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phbalReg_KinetisSpi.c b/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phbalReg_KinetisSpi.c
+index e80fc5a..89b7dcd 100644
+--- a/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phbalReg_KinetisSpi.c
++++ b/kw45b41zevk_w_uart_ncf3320_basic_discovery/nfc/DAL/src/KinetisSDK/phbalReg_KinetisSpi.c
+@@ -28,11 +28,19 @@
+ #include "phDriver.h"
+ #include "BoardSelection.h"
+ 
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++#include "fsl_lpit.h"
++#else
+ #include "fsl_pit.h"
++#endif
+ #include "fsl_gpio.h"
+ #include "fsl_common.h"
+ #include "fsl_port.h"
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++#include "fsl_lpspi.h"
++#else
+ #include "fsl_dspi.h"
++#endif
+ 
+ #ifndef PHDRIVER_KSDK_SPI_POLLING
+ #include <fsl_dspi_freertos.h>
+@@ -53,6 +61,39 @@ phStatus_t phbalReg_Init(
+                          uint16_t wSizeOfDataParams
+                          )
+ {
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++	lpspi_master_config_t g_masterConfig;
++
++    if ( (pDataParams == NULL) || (sizeof(phbalReg_Type_t) != wSizeOfDataParams))
++    {
++        return (PH_DRIVER_ERROR | PH_COMP_DRIVER);
++    }
++
++    ((phbalReg_Type_t *)pDataParams)->wId      = PH_COMP_DRIVER | PHBAL_REG_KINETIS_SPI_ID;
++    ((phbalReg_Type_t *)pDataParams)->bBalType = PHBAL_REG_TYPE_SPI;
++
++    memset(&g_masterConfig, 0, sizeof(lpspi_master_config_t));
++
++
++    g_masterConfig.baudRate = PHDRIVER_KSDK_SPI_DATA_RATE;
++    g_masterConfig.bitsPerFrame = 8U;
++    g_masterConfig.cpol = kLPSPI_ClockPolarityActiveHigh;
++    g_masterConfig.cpha = kLPSPI_ClockPhaseFirstEdge;
++    g_masterConfig.direction = kLPSPI_MsbFirst;
++    g_masterConfig.pcsToSckDelayInNanoSec = 1000000000U / PHDRIVER_KSDK_SPI_DATA_RATE;
++    g_masterConfig.lastSckToPcsDelayInNanoSec = 1000000000U / PHDRIVER_KSDK_SPI_DATA_RATE;
++    g_masterConfig.betweenTransferDelayInNanoSec = 1000000000U / PHDRIVER_KSDK_SPI_DATA_RATE;
++    g_masterConfig.whichPcs = kLPSPI_Pcs0;
++    g_masterConfig.pcsActiveHighOrLow = kLPSPI_PcsActiveLow;
++     
++    /*Set clock source for LPSPI and get master clock source*/
++   CLOCK_SetIpSrc(PHDRIVER_KSDK_SPI_CLK_SRC, kCLOCK_IpSrcFro192M);
++   CLOCK_SetIpSrcDiv(PHDRIVER_KSDK_SPI_CLK_SRC, kSCG_SysClkDivBy16);
++   phbalReg_SpiInit();
++    /* Initialize the DSPI peripheral */
++    LPSPI_MasterInit(PHDRIVER_KSDK_SPI_MASTER, &g_masterConfig, CLOCK_GetIpFreq(PHDRIVER_KSDK_SPI_CLK_SRC));
++
++#else
+     dspi_master_config_t g_masterConfig;
+ 
+     if ( (pDataParams == NULL) || (sizeof(phbalReg_Type_t) != wSizeOfDataParams))
+@@ -88,6 +129,7 @@ phStatus_t phbalReg_Init(
+     DSPI_MasterInit(PHDRIVER_KSDK_SPI_MASTER, &g_masterConfig, CLOCK_GetFreq(PHDRIVER_KSDK_SPI_CLK_SRC));
+ #else
+     DSPI_RTOS_Init(&g_masterHandle, PHDRIVER_KSDK_SPI_MASTER, &g_masterConfig, CLOCK_GetFreq(PHDRIVER_KSDK_SPI_CLK_SRC));
++#endif
+ #endif
+ 
+     return PH_DRIVER_SUCCESS;
+@@ -106,11 +148,17 @@ phStatus_t phbalReg_Exchange(
+     phStatus_t status = PH_DRIVER_SUCCESS;
+     uint8_t * pRxBuf;
+     status_t dspiStatus;
++#if PHDRIVER_EVK_KW45FRC663_BOARD	
++    lpspi_transfer_t g_masterXfer;
++    uint8_t g_dummyBuffer[260];
++
++    memset(&g_masterXfer, 0, sizeof(lpspi_transfer_t));
++#else
+     dspi_transfer_t g_masterXfer;
+     uint8_t g_dummyBuffer[260];
+ 
+     memset(&g_masterXfer, 0, sizeof(dspi_transfer_t));
+-
++#endif
+     if(pRxBuffer == NULL)
+     {
+         pRxBuf = g_dummyBuffer;
+@@ -124,11 +172,19 @@ phStatus_t phbalReg_Exchange(
+     g_masterXfer.txData = pTxBuffer;
+     g_masterXfer.rxData = pRxBuf;
+     g_masterXfer.dataSize = wTxLength;
++#if PHDRIVER_EVK_KW45FRC663_BOARD	
++    g_masterXfer.configFlags = kLPSPI_MasterPcs0 | kLPSPI_MasterPcsContinuous;
++#else
+     g_masterXfer.configFlags = kDSPI_MasterCtar0 | kDSPI_MasterPcs0 | kDSPI_MasterPcsContinuous;
++#endif
+ 
+     /* Start transfer */
+ #ifdef PHDRIVER_KSDK_SPI_POLLING
++#if PHDRIVER_EVK_KW45FRC663_BOARD
++    dspiStatus = LPSPI_MasterTransferBlocking(PHDRIVER_KSDK_SPI_MASTER, &g_masterXfer);
++#else
+     dspiStatus = DSPI_MasterTransferBlocking(PHDRIVER_KSDK_SPI_MASTER, &g_masterXfer);
++#endif	
+ #else
+     dspiStatus = DSPI_RTOS_Transfer(&g_masterHandle, &g_masterXfer);
+ #endif
+@@ -171,10 +227,14 @@ static void phbalReg_SpiInit(void)
+         .pullSelect = kPORT_PullDisable,
+         .slewRate = kPORT_FastSlewRate,
+         .passiveFilterEnable = kPORT_PassiveFilterDisable,
++#if defined(FSL_FEATURE_PORT_HAS_OPEN_DRAIN) && FSL_FEATURE_PORT_HAS_OPEN_DRAIN
+         .openDrainEnable = kPORT_OpenDrainDisable,
++#endif
+         .driveStrength = kPORT_HighDriveStrength,
+         .mux = kPORT_MuxAsGpio,
++#if defined(FSL_FEATURE_PORT_HAS_PIN_CONTROL_LOCK) && FSL_FEATURE_PORT_HAS_PIN_CONTROL_LOCK
+         .lockRegister = kPORT_UnlockRegister
++#endif
+     };
+ 
+     /* SPI Configuration */
